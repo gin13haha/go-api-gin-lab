@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -40,9 +41,53 @@ func (h *StudentHandler) CreateStudent(c *gin.Context) {
 	}
 
 	if err := h.Service.CreateStudent(student); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
 		return
 	}
 
 	c.JSON(http.StatusCreated, student)
+}
+
+func (h *StudentHandler) UpdateStudent(c *gin.Context) {
+	id := c.Param("id")
+
+	var input models.Student
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updated, err := h.Service.UpdateStudent(id, input)
+	if err != nil {
+		if errors.Is(err, services.ErrStudentNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, services.ErrInvalidInput) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, updated)
+}
+
+func (h *StudentHandler) DeleteStudent(c *gin.Context) {
+	id := c.Param("id")
+
+	err := h.Service.DeleteStudent(id)
+	if err != nil {
+		if errors.Is(err, services.ErrStudentNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }
